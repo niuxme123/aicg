@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AICG 短视频剧本生成器</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部标题栏 -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-film"></i>
+                <h1>AICG 短视频剧本生成器</h1>
+            </div>
+            <div class="header-info">
+                <span id="status-indicator" class="status-indicator idle">
+                    <i class="fas fa-circle"></i> 就绪
+                </span>
+                <button id="dark-mode-toggle" class="btn-icon" title="切换深色/浅色模式">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- 主内容区 -->
+            <main class="content">
+                <!-- 输入和提示词编辑区域 - 左右结构 -->
+                <div class="input-prompt-row">
+                    <!-- 左侧：输入区域 -->
+                    <div class="card input-card">
+                        <div class="card-header">
+                            <i class="fas fa-keyboard"></i>
+                            <h2>输入原始剧本</h2>
+                            <div class="card-actions">
+                                <button id="btn-save-script" class="btn-icon" title="保存剧本">
+                                    <i class="fas fa-save"></i>
+                                </button>
+                                <button id="btn-load-script" class="btn-icon" title="加载剧本">
+                                    <i class="fas fa-folder-open"></i>
+                                </button>
+                                <button id="btn-example" class="btn-icon" title="加载示例">
+                                    <i class="fas fa-file-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <textarea id="input-script" class="script-input" placeholder="在此粘贴原始剧本文本..."></textarea>
+                            <div class="input-footer">
+                                <span id="input-length">0 字</span>
+                                <button id="btn-clear-input" class="btn-text">
+                                    <i class="fas fa-trash"></i> 清空
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧：提示词编辑区域 -->
+                    <div class="card prompt-card">
+                        <div class="card-header">
+                            <i class="fas fa-edit"></i>
+                            <h2>提示词编辑</h2>
+                            <div class="prompt-step-tabs">
+                                <button class="prompt-step-btn active" data-prompt-step="1">排版</button>
+                                <button class="prompt-step-btn" data-prompt-step="2">洗稿</button>
+                                <button class="prompt-step-btn" data-prompt-step="3">分镜</button>
+                                <button class="prompt-step-btn" data-prompt-step="4">优化</button>
+                                <button class="prompt-step-btn" data-prompt-step="5">定妆照</button>
+                                <button class="prompt-step-btn" data-prompt-step="6">关键帧</button>
+                                <button class="prompt-step-btn" data-prompt-step="7">场景</button>
+                            </div>
+                            <div class="card-actions">
+                                <button id="btn-manage-prompts" class="btn-icon" title="管理提示词">
+                                    <i class="fas fa-folder-open"></i>
+                                </button>
+                                <button id="btn-reset-prompt" class="btn-icon" title="恢复默认提示词">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                                <button id="btn-save-prompt" class="btn-icon" title="保存提示词">
+                                    <i class="fas fa-save"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- 排版提示词 (步骤1) -->
+                            <div class="prompt-editor active" id="prompt-editor-1">
+                                <div class="prompt-header">
+                                    <span>输入来源: </span>
+                                    <select id="input-format" class="count-select">
+                                        <option value="input">原始剧本</option>
+                                    </select>
+                                    <span style="margin-left: 0.5rem;">数量: </span>
+                                    <select id="count-format" class="count-select">
+                                        <option value="1">1</option>
+                                    </select>
+                                    <button class="btn-run-step btn-primary" data-step="1">
+                                        <i class="fas fa-play"></i> 执行排版
+                                    </button>
+                                    <select id="model-step-1" class="count-select model-step-select" style="margin-left: 0.25rem;">
+                                        <!-- 模型选项动态生成 -->
+                                    </select>
+                                </div>
+                                <textarea id="prompt-format" class="script-input prompt-textarea" placeholder="排版提示词..."></textarea>
+                            </div>
+                            <!-- 洗稿提示词 (步骤2) -->
+                            <div class="prompt-editor" id="prompt-editor-2">
+                                <div class="prompt-header">
+                                    <span>输入来源: </span>
+                                    <select id="input-rewrite" class="count-select">
+                                        <option value="format">排版结果</option>
+                                        <option value="input">原始剧本</option>
+                                    </select>
+                                    <span style="margin-left: 0.5rem;">数量: </span>
+                                    <select id="count-rewrite" class="count-select">
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                    </select>
+                                    <button class="btn-run-step btn-primary" data-step="2">
+                                        <i class="fas fa-play"></i> 执行洗稿
+                                    </button>
+                                    <select id="model-step-2" class="count-select model-step-select" style="margin-left: 0.25rem;">
+                                    </select>
+                                </div>
+                                <textarea id="prompt-rewrite" class="script-input prompt-textarea" placeholder="洗稿提示词..."></textarea>
+                            </div>
+                            <!-- 分镜提示词 (步骤3) -->
+                            <div class="prompt-editor" id="prompt-editor-3">
+                                <div class="prompt-header">
+                                    <span>输入来源: </span>
+                                    <select id="input-storyboard" class="count-select">
+                                        <option value="rewrite">洗稿结果</option>
+                                        <option value="format">排版结果</option>
+                                        <option value="input">原始剧本</option>
+                                    </select>
+                                    <span style="margin-left: 0.5rem;">数量: </span>
+                                    <select id="count-storyboard" class="count-select">
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                    </select>
+                                    <button class="btn-run-step btn-primary" data-step="3">
+                                        <i class="fas fa-play"></i> 执行分镜
+                                    </button>
+                                    <select id="model-step-3" class="count-select model-step-select" style="margin-left: 0.25rem;">
+                                    </select>
+                                </div>
+                                <textarea id="prompt-storyboard" class="script-input prompt-textarea" placeholder="分镜提示词..."></textarea>
+                            </div>
+                            <!-- 优化提示词 (步骤4) -->
+                            <div class="prompt-editor" id="prompt-editor-4">
+                                <div class="prompt-header">
+                                    <span>输入来源: </span>
+                                    <select id="input-storyboard-opt" class="count-select">
+                                        <option value="storyboard">分镜结果</option>
+                                        <option value="rewrite">洗稿结果</option>
+                                        <option value="format">排版结果</option>
+                                        <option value="input">原始剧本</option>
+                                    </select>
+                                    <span style="margin-left: 0.5rem;">数量: </span>
+                                    <select id="count-storyboard-opt" class="count-select">
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                    </select>
+                                    <button class="btn-run-step btn-primary" data-step="4">
+                                        <i class="fas fa-play"></i> 执行优化
+                                    </button>
+                                    <select id="model-step-4" class="count-select model-step-select" style="margin-left: 0.25rem;">
+                                    </select>
+                                </div>
+                                <textarea id="prompt-storyboard-opt" class="script-input prompt-textarea" placeholder="分镜优化提示词..."></textarea>
+                            </div>
+                            <!-- 定妆照提示词 (步骤5) -->
+                            <div class="prompt-editor" id="prompt-editor-5">
+                                <div class="prompt-header">
+                                    <span>输入来源: </span>
+                                    <select id="input-character" class="count-select">
+                                        <option value="storyboardOpt">优化分镜</option>
+                                        <option value="storyboard">分镜结果</option>
+                                        <option value="rewrite">洗稿结果</option>
+                                        <option value="format">排版结果</option>
+                                        <option value="input">原始剧本</option>
+                                    </select>
+                                    <span style="margin-left: 0.5rem;">数量: </span>
+                                    <select id="count-character" class="count-select">
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                    </select>
+                                    <button class="btn-run-step btn-primary" data-step="5">
+                                        <i class="fas fa-play"></i> 执行定妆照
+                                    </button>
+                                    <select id="model-step-5" class="count-select model-step-select" style="margin-left: 0.25rem;">
+                                    </select>
+                                </div>
+                                <textarea id="prompt-character" class="script-input prompt-textarea" placeholder="定妆照提示词..."></textarea>
+                            </div>
+                        <!-- 关键帧提示词 (步骤6) -->
+                        <div class="prompt-editor" id="prompt-editor-6">
+                            <div class="prompt-header">
+                                <span>输入来源: </span>
+                                <select id="input-keyframe" class="count-select">
+                                    <option value="storyboardOpt">优化分镜</option>
+                                    <option value="storyboard">分镜结果</option>
+                                    <option value="rewrite">洗稿结果</option>
+                                    <option value="format">排版结果</option>
+                                    <option value="input">原始剧本</option>
+                                </select>
+                                <span style="margin-left: 0.5rem;">数量: </span>
+                                <select id="count-keyframe" class="count-select">
+                                    <option value="1">1</option>
+                                </select>
+                                <button class="btn-run-step btn-primary" data-step="6">
+                                    <i class="fas fa-play"></i> 执行关键帧
+                                </button>
+                                <select id="model-step-6" class="count-select model-step-select" style="margin-left: 0.25rem;">
+                                </select>
+                            </div>
+                            <textarea id="prompt-keyframe" class="script-input prompt-textarea" placeholder="关键帧提示词..."></textarea>
+                        </div>
+                        <!-- 场景提示词 (步骤7) -->
+                        <div class="prompt-editor" id="prompt-editor-7">
+                            <div class="prompt-header">
+                                <span>输入来源: </span>
+                                <select id="input-scene" class="count-select">
+                                    <option value="storyboardOpt">优化分镜</option>
+                                    <option value="storyboard">分镜结果</option>
+                                    <option value="rewrite">洗稿结果</option>
+                                    <option value="format">排版结果</option>
+                                    <option value="input">原始剧本</option>
+                                </select>
+                                <span style="margin-left: 0.5rem;">数量: </span>
+                                <select id="count-scene" class="count-select">
+                                    <option value="1">1</option>
+                                </select>
+                                <button class="btn-run-step btn-primary" data-step="7">
+                                    <i class="fas fa-play"></i> 执行场景
+                                </button>
+                                <select id="model-step-7" class="count-select model-step-select" style="margin-left: 0.25rem;">
+                                </select>
+                            </div>
+                            <textarea id="prompt-scene" class="script-input prompt-textarea" placeholder="场景提示词..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 输出区域（标签页） -->
+            <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-file-code"></i>
+                        <h2>生成结果</h2>
+                        <div class="tabs">
+                            <button class="tab-btn active" data-tab="tab-1">排版结果 <span class="tab-count" data-for="format"></span></button>
+                            <button class="tab-btn" data-tab="tab-2">洗稿结果 <span class="tab-count" data-for="rewrite"></span></button>
+                            <button class="tab-btn" data-tab="tab-3">分镜结果 <span class="tab-count" data-for="storyboard"></span></button>
+                            <button class="tab-btn" data-tab="tab-4">优化分镜 <span class="tab-count" data-for="storyboardOpt"></span></button>
+                            <button class="tab-btn" data-tab="tab-5">定妆照 <span class="tab-count" data-for="character"></span></button>
+                            <button class="tab-btn" data-tab="tab-6">关键帧 <span class="tab-count" data-for="keyframe"></span></button>
+                            <button class="tab-btn" data-tab="tab-7">场景 <span class="tab-count" data-for="scene"></span></button>
+                        </div>
+                        <div class="card-actions">
+                            <button id="btn-copy" class="btn-icon" title="复制全部">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button id="btn-download" class="btn-icon" title="下载结果">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content active" id="tab-1">
+                            <div class="output-header" data-for="format">
+                                <button class="version-btn btn-prev" data-for="format"><i class="fas fa-chevron-left"></i></button>
+                                <span class="version-info" data-for="format">1/1</span>
+                                <button class="version-btn btn-next" data-for="format"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                            <textarea id="output-format" class="script-output" placeholder="排版结果将在此显示..."></textarea>
+                        </div>
+                        <div class="tab-content" id="tab-2">
+                            <div class="output-header" data-for="rewrite">
+                                <button class="version-btn btn-prev" data-for="rewrite"><i class="fas fa-chevron-left"></i></button>
+                                <span class="version-info" data-for="rewrite">1/1</span>
+                                <button class="version-btn btn-next" data-for="rewrite"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                            <textarea id="output-rewrite" class="script-output" placeholder="洗稿结果将在此显示..."></textarea>
+                        </div>
+                        <div class="tab-content" id="tab-3">
+                            <div class="output-header" data-for="storyboard">
+                                <button class="version-btn btn-prev" data-for="storyboard"><i class="fas fa-chevron-left"></i></button>
+                                <span class="version-info" data-for="storyboard">1/1</span>
+                                <button class="version-btn btn-next" data-for="storyboard"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                            <textarea id="output-storyboard" class="script-output" placeholder="分镜结果将在此显示..."></textarea>
+                        </div>
+                        <div class="tab-content" id="tab-4">
+                            <div class="output-header" data-for="storyboardOpt">
+                                <button class="version-btn btn-prev" data-for="storyboardOpt"><i class="fas fa-chevron-left"></i></button>
+                                <span class="version-info" data-for="storyboardOpt">1/1</span>
+                                <button class="version-btn btn-next" data-for="storyboardOpt"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                            <textarea id="output-storyboard-opt" class="script-output" placeholder="优化分镜结果将在此显示..."></textarea>
+                        </div>
+                        <div class="tab-content" id="tab-5">
+                            <div class="output-header" data-for="character">
+                                <button class="version-btn btn-prev" data-for="character"><i class="fas fa-chevron-left"></i></button>
+                                <span class="version-info" data-for="character">1/1</span>
+                                <button class="version-btn btn-next" data-for="character"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                            <textarea id="output-character" class="script-output" placeholder="定妆照结果将在此显示..."></textarea>
+                        </div>
+                        <div class="tab-content" id="tab-6">
+                            <div class="output-header" data-for="keyframe">
+                                <button class="version-btn btn-prev" data-for="keyframe"><i class="fas fa-chevron-left"></i></button>
+                                <span class="version-info" data-for="keyframe">1/1</span>
+                                <button class="version-btn btn-next" data-for="keyframe"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                            <textarea id="output-keyframe" class="script-output" placeholder="关键帧结果将在此显示..."></textarea>
+                        </div>
+                        <div class="tab-content" id="tab-7">
+                            <div class="output-header" data-for="scene">
+                                <button class="version-btn btn-prev" data-for="scene"><i class="fas fa-chevron-left"></i></button>
+                                <span class="version-info" data-for="scene">1/1</span>
+                                <button class="version-btn btn-next" data-for="scene"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                            <textarea id="output-scene" class="script-output" placeholder="场景提示词结果将在此显示..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- 右侧设置浮动按钮和面板 -->
+        <button id="btn-settings-toggle" class="settings-toggle-btn" title="API 设置">
+            <i class="fas fa-cog"></i>
+        </button>
+
+        <div id="settings-panel" class="settings-panel-float collapsed">
+            <div class="settings-panel-header">
+                <h2><i class="fas fa-sliders-h"></i> API 设置</h2>
+                <button id="btn-settings-close" class="btn-icon" title="关闭">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="settings-panel-body">
+                <div class="form-group">
+                    <label>
+                        <i class="fas fa-list"></i> 模型列表
+                    </label>
+                    <div class="help-text" style="margin-bottom: 8px;">
+                        每个模型需要设置 API 端点和 API Key
+                    </div>
+                    <div id="model-list-container">
+                        <!-- 模型列表将动态生成 -->
+                    </div>
+                    <div class="form-actions" style="margin-top: 8px;">
+                        <button id="btn-add-model" class="btn-secondary">
+                            <i class="fas fa-plus"></i> 添加
+                        </button>
+                        <button id="btn-save-settings" class="btn-primary">
+                            <i class="fas fa-save"></i> 保存
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部状态栏 -->
+        <footer class="footer">
+            <div class="footer-left">
+                <span id="api-status" class="api-status">
+                    <i class="fas fa-plug"></i> API: 未连接
+                </span>
+                <span id="progress-status">就绪</span>
+            </div>
+            <div class="footer-right">
+                <span class="version">v1.0.0</span>
+                <button id="btn-help" class="btn-icon-small" title="帮助">
+                    <i class="fas fa-question-circle"></i>
+                </button>
+            </div>
+        </footer>
+
+        <!-- 模态框 -->
+        <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">标题</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                内容
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

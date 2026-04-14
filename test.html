@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>测试 - AICG 短视频剧本生成器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .file { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>AICG 短视频剧本生成器 - 测试页面</h1>
+    
+    <h2>文件结构检查</h2>
+    <ul>
+        <li class="success">✓ index.html (主页面) - 12,714 字节</li>
+        <li class="success">✓ styles.css (样式文件) - 13,776 字节</li>
+        <li class="success">✓ app.js (JavaScript逻辑) - 28,125 字节</li>
+        <li class="success">✓ prompts.js (提示词模板) - 2,829 字节</li>
+        <li class="success">✓ AICG.pdf (原始文档) - 1,040,148 字节</li>
+    </ul>
+    
+    <h2>功能模块</h2>
+    <ul>
+        <li>✓ 洗稿功能 (rewrite)</li>
+        <li>✓ 排版功能 (format)</li>
+        <li>✓ 分镜生成 (storyboard)</li>
+        <li>✓ 分镜优化 (storyboard optimization)</li>
+        <li>✓ 人物定妆照生成 (character)</li>
+        <li>✓ 关键帧生成 (keyframe)</li>
+    </ul>
+    
+    <h2>使用说明</h2>
+    <ol>
+        <li>打开 <a href="index.html">index.html</a> 在浏览器中</li>
+        <li>在右侧设置面板输入 OpenAI API Key</li>
+        <li>在左侧输入框中粘贴原始剧本</li>
+        <li>点击"一键生成"开始全流程</li>
+        <li>或点击步骤导航栏切换到特定步骤</li>
+        <li>查看中间区域的不同标签页查看结果</li>
+        <li>使用右上角按钮复制或下载结果</li>
+    </ol>
+    
+    <h2>核心功能</h2>
+    <div class="file">
+        <h3>prompts.js - 提示词模板</h3>
+        <pre>包含6个主要提示词模板：
+- REWRITE_PROMPT: 洗稿
+- FORMAT_PROMPT: 排版  
+- STORYBOARD_PROMPT: 分镜
+- STORYBOARD_TEMPLATE_PROMPT: 分镜优化
+- CHARACTER_PROMPT: 人物定妆照
+- KEYFRAME_PROMPT: 关键帧</pre>
+    </div>
+    
+    <div class="file">
+        <h3>app.js - 核心功能</h3>
+        <pre>主要函数：
+- callOpenAI(): 调用 OpenAI API
+- runRewriteStep(): 洗稿
+- runFormatStep(): 排版
+- runStoryboardStep(): 分镜
+- runStoryboardOptStep(): 分镜优化
+- runCharacterStep(): 人物定妆照
+- runKeyframeStep(): 关键帧
+- runAllSteps(): 一键生成
+- runCurrentStep(): 单步执行</pre>
+    </div>
+    
+    <h2>下一步操作</h2>
+    <ul>
+        <li>1. 打开 <a href="index.html">主页面</a></li>
+        <li>2. 输入 OpenAI API Key</li>
+        <li>3. 点击"测试连接"验证 API</li>
+        <li>4. 点击"加载示例"获取测试剧本</li>
+        <li>5. 点击"一键生成"开始处理</li>
+    </ul>
+    
+    <p><a href="index.html">点击这里进入主应用</a></p>
+</body>
+</html>

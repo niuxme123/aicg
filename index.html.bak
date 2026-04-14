@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AICG 短视频剧本生成器</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部标题栏 -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-film"></i>
+                <h1>AICG 短视频剧本生成器</h1>
+            </div>
+            <div class="header-info">
+                <span id="status-indicator" class="status-indicator idle">
+                    <i class="fas fa-circle"></i> 就绪
+                </span>
+                <button id="dark-mode-toggle" class="btn-icon" title="切换深色/浅色模式">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- 左侧流程导航 -->
+            <nav class="sidebar">
+                <div class="sidebar-section">
+                    <h2><i class="fas fa-stream"></i> 工作流程</h2>
+                    <ul class="process-list">
+                        <li class="process-item active" data-step="1">
+                            <div class="process-step">1</div>
+                            <div class="process-info">
+                                <h3>洗稿</h3>
+                                <p>重写剧本，更换人物和台词</p>
+                            </div>
+                        </li>
+                        <li class="process-item" data-step="2">
+                            <div class="process-step">2</div>
+                            <div class="process-info">
+                                <h3>排版</h3>
+                                <p>格式化剧本，添加场景标注</p>
+                            </div>
+                        </li>
+                        <li class="process-item" data-step="3">
+                            <div class="process-step">3</div>
+                            <div class="process-info">
+                                <h3>分镜</h3>
+                                <p>生成每15秒4-5个分镜</p>
+                            </div>
+                        </li>
+                        <li class="process-item" data-step="4">
+                            <div class="process-step">4</div>
+                            <div class="process-info">
+                                <h3>分镜优化</h3>
+                                <p>按视频制作模板格式化</p>
+                            </div>
+                        </li>
+                        <li class="process-item" data-step="5">
+                            <div class="process-step">5</div>
+                            <div class="process-info">
+                                <h3>定妆照 + 场景</h3>
+                                <p>生成AI绘画提示词</p>
+                            </div>
+                        </li>
+                        <li class="process-item" data-step="6">
+                            <div class="process-step">6</div>
+                            <div class="process-info">
+                                <h3>关键帧</h3>
+                                <p>生成关键帧图片提示词</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="sidebar-section">
+                    <h2><i class="fas fa-cogs"></i> 流程控制</h2>
+                    <div class="control-buttons">
+                        <button id="btn-run-all" class="btn-primary">
+                            <i class="fas fa-play"></i> 一键生成
+                        </button>
+                        <button id="btn-run-step" class="btn-secondary">
+                            <i class="fas fa-forward"></i> 单步执行
+                        </button>
+                        <button id="btn-reset" class="btn-danger">
+                            <i class="fas fa-redo"></i> 重置
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- 主内容区 -->
+            <main class="content">
+                <!-- 输入区域 -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-keyboard"></i>
+                        <h2>输入原始剧本</h2>
+                        <div class="card-actions">
+                            <button id="btn-example" class="btn-icon" title="加载示例">
+                                <i class="fas fa-file-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <textarea id="input-script" class="script-input" placeholder="在此粘贴原始剧本文本..."></textarea>
+                        <div class="input-footer">
+                            <span id="input-length">0 字</span>
+                            <button id="btn-clear-input" class="btn-text">
+                                <i class="fas fa-trash"></i> 清空
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 输出区域（标签页） -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-file-code"></i>
+                        <h2>生成结果</h2>
+                        <div class="tabs">
+                            <button class="tab-btn active" data-tab="tab-1">洗稿结果</button>
+                            <button class="tab-btn" data-tab="tab-2">排版结果</button>
+                            <button class="tab-btn" data-tab="tab-3">分镜结果</button>
+                            <button class="tab-btn" data-tab="tab-4">优化分镜</button>
+                            <button class="tab-btn" data-tab="tab-5">定妆照</button>
+                            <button class="tab-btn" data-tab="tab-6">关键帧</button>
+                        </div>
+                        <div class="card-actions">
+                            <button id="btn-copy" class="btn-icon" title="复制全部">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button id="btn-download" class="btn-icon" title="下载结果">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content active" id="tab-1">
+                            <pre id="output-rewrite" class="script-output"></pre>
+                        </div>
+                        <div class="tab-content" id="tab-2">
+                            <pre id="output-format" class="script-output"></pre>
+                        </div>
+                        <div class="tab-content" id="tab-3">
+                            <pre id="output-storyboard" class="script-output"></pre>
+                        </div>
+                        <div class="tab-content" id="tab-4">
+                            <pre id="output-storyboard-opt" class="script-output"></pre>
+                        </div>
+                        <div class="tab-content" id="tab-5">
+                            <pre id="output-character" class="script-output"></pre>
+                        </div>
+                        <div class="tab-content" id="tab-6">
+                            <pre id="output-keyframe" class="script-output"></pre>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- 右侧设置面板 -->
+            <aside class="sidebar-right">
+                <div class="settings-panel">
+                    <h2><i class="fas fa-sliders-h"></i> API 设置</h2>
+
+                    <div class="form-group">
+                        <label for="api-key">
+                            <i class="fas fa-key"></i> OpenAI API Key
+                        </label>
+                        <div class="input-with-icon">
+                            <input type="password" id="api-key" placeholder="sk-..."
+                                   value="sk-proj-X7J5L6n4zP2Q1wE3rT9yU8iA0sD1fG2hJ3k">
+                            <button id="btn-toggle-key" class="btn-icon-small" type="button">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="model-select">
+                            <i class="fas fa-brain"></i> AI 模型
+                        </label>
+                        <select id="model-select" class="select-input">
+                            <option value="gpt-4o">GPT-4o (推荐)</option>
+                            <option value="gpt-4o-mini">GPT-4o Mini (快速)</option>
+                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo (经济)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="temperature">
+                            <i class="fas fa-thermometer-half"></i> 创造力 (0-1)
+                        </label>
+                        <div class="range-container">
+                            <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7">
+                            <span id="temp-value">0.7</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="max-tokens">
+                            <i class="fas fa-text-height"></i> 最大长度
+                        </label>
+                        <input type="number" id="max-tokens" min="100" max="4000" value="2000">
+                    </div>
+
+                    <div class="form-actions">
+                        <button id="btn-save-settings" class="btn-primary">
+                            <i class="fas fa-save"></i> 保存设置
+                        </button>
+                        <button id="btn-test-api" class="btn-secondary">
+                            <i class="fas fa-check"></i> 测试连接
+                        </button>
+                    </div>
+
+                    <div class="settings-info">
+                        <h3><i class="fas fa-info-circle"></i> 使用说明</h3>
+                        <ol>
+                            <li>在左侧输入原始剧本</li>
+                            <li>点击"一键生成"开始全流程</li>
+                            <li>点击步骤可以查看对应输出</li>
+                            <li>结果可以复制或下载</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div class="history-panel">
+                    <h2><i class="fas fa-history"></i> 历史记录</h2>
+                    <ul id="history-list" class="history-list">
+                        <li class="history-item">暂无记录</li>
+                    </ul>
+                </div>
+            </aside>
+        </div>
+
+        <!-- 底部状态栏 -->
+        <footer class="footer">
+            <div class="footer-left">
+                <span id="api-status" class="api-status">
+                    <i class="fas fa-plug"></i> API: 未连接
+                </span>
+                <span id="progress-status">就绪</span>
+            </div>
+            <div class="footer-right">
+                <span class="version">v1.0.0</span>
+                <button id="btn-help" class="btn-icon-small" title="帮助">
+                    <i class="fas fa-question-circle"></i>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 模态框 -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">标题</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                内容
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

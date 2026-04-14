@@ -1,0 +1,799 @@
+// AICG 短视频剧本生成器 - 主逻辑
+// 全局变量
+let currentStep = 1;
+let results = {
+    rewrite: '',
+    format: '',
+    storyboard: '',
+    storyboardOpt: '',
+    character: '',
+    keyframe: ''
+};
+
+// DOM 元素
+const elements = {
+    inputScript: null,
+    outputRewrite: null,
+    outputFormat: null,
+    outputStoryboard: null,
+    outputStoryboardOpt: null,
+    outputCharacter: null,
+    outputKeyframe: null,
+    btnRunAll: null,
+    btnRunStep: null,
+    btnReset: null,
+    btnCopy: null,
+    btnDownload: null,
+    btnExample: null,
+    btnClearInput: null,
+    processItems: null,
+    tabBtns: null,
+    tabContents: null,
+    apiKeyInput: null,
+    modelSelect: null,
+    temperatureInput: null,
+    maxTokensInput: null,
+    statusIndicator: null,
+    progressStatus: null,
+    apiStatus: null,
+    modal: null,
+    modalTitle: null,
+    modalBody: null
+};
+
+// 初始化函数
+function init() {
+    // 获取DOM元素
+    cacheElements();
+    
+    // 绑定事件
+    bindEvents();
+    
+    // 初始化本地存储
+    loadSettings();
+    
+    // 更新输入字数
+    updateInputLength();
+    
+    console.log('AICG 短视频剧本生成器初始化完成');
+}
+
+// 缓存DOM元素
+function cacheElements() {
+    elements.inputScript = document.getElementById('input-script');
+    elements.outputRewrite = document.getElementById('output-rewrite');
+    elements.outputFormat = document.getElementById('output-format');
+    elements.outputStoryboard = document.getElementById('output-storyboard');
+    elements.outputStoryboardOpt = document.getElementById('output-storyboard-opt');
+    elements.outputCharacter = document.getElementById('output-character');
+    elements.outputKeyframe = document.getElementById('output-keyframe');
+    
+    elements.btnRunAll = document.getElementById('btn-run-all');
+    elements.btnRunStep = document.getElementById('btn-run-step');
+    elements.btnReset = document.getElementById('btn-reset');
+    elements.btnCopy = document.getElementById('btn-copy');
+    elements.btnDownload = document.getElementById('btn-download');
+    elements.btnExample = document.getElementById('btn-example');
+    elements.btnClearInput = document.getElementById('btn-clear-input');
+    
+    elements.processItems = document.querySelectorAll('.process-item');
+    elements.tabBtns = document.querySelectorAll('.tab-btn');
+    elements.tabContents = document.querySelectorAll('.tab-content');
+    
+    elements.apiKeyInput = document.getElementById('api-key');
+    elements.modelSelect = document.getElementById('model-select');
+    elements.temperatureInput = document.getElementById('temperature');
+    elements.maxTokensInput = document.getElementById('max-tokens');
+    
+    elements.statusIndicator = document.getElementById('status-indicator');
+    elements.progressStatus = document.getElementById('progress-status');
+    elements.apiStatus = document.getElementById('api-status');
+    
+    elements.modal = document.getElementById('modal');
+    elements.modalTitle = document.getElementById('modal-title');
+    elements.modalBody = document.getElementById('modal-body');
+}
+
+// 绑定事件
+function bindEvents() {
+    // 输入区域
+    elements.inputScript.addEventListener('input', updateInputLength);
+    elements.btnClearInput.addEventListener('click', clearInput);
+    elements.btnExample.addEventListener('click', loadExample);
+    
+    // 流程控制
+    elements.btnRunAll.addEventListener('click', runAllSteps);
+    elements.btnRunStep.addEventListener('click', runCurrentStep);
+    elements.btnReset.addEventListener('click', resetAll);
+    elements.btnCopy.addEventListener('click', copyAllResults);
+    elements.btnDownload.addEventListener('click', downloadResults);
+    
+    // 流程导航
+    elements.processItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const step = parseInt(item.dataset.step);
+            setActiveStep(step);
+            showTab(step);
+        });
+    });
+    
+    // 标签页切换
+    elements.tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabId = btn.dataset.tab;
+            showTab(tabId);
+        });
+    });
+    
+    // API 设置
+    document.getElementById('btn-toggle-key').addEventListener('click', toggleApiKeyVisibility);
+    document.getElementById('btn-save-settings').addEventListener('click', saveSettings);
+    document.getElementById('btn-test-api').addEventListener('click', testApiConnection);
+    
+    elements.temperatureInput.addEventListener('input', updateTemperatureValue);
+    
+    // 模态框
+    document.querySelector('.modal-close').addEventListener('click', closeModal);
+    document.getElementById('btn-help').addEventListener('click', showHelp);
+    elements.modal.addEventListener('click', (e) => {
+        if (e.target === elements.modal) closeModal();
+    });
+    
+    // 暗色/亮色模式切换
+    document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
+}
+
+// 更新输入字数
+function updateInputLength() {
+    const length = elements.inputScript.value.length;
+    document.getElementById('input-length').textContent = `${length} 字`;
+}
+
+// 清空输入
+function clearInput() {
+    elements.inputScript.value = '';
+    updateInputLength();
+}
+
+// 加载示例
+function loadExample() {
+    const exampleScript = `老李，咱老家亲戚群里，现在都在传闲话，说厂里资金出问题，还有查封的不实消息，也不知道是谁乱往外说的，搞得大家都瞎猜疑。
+
+"别查了，那闲话是我自己找人放的。"
+"你疯了，这种玩笑能随便开吗？明天那些供货商能把咱家大⻔给拆了。"
+
+秀兰，这几年咱们厂子越做越大，可这身边围着的亲戚到底是人是⻤，咱俩根本分不清。我就想借着这次机会刚好清理一下⻔戶，咱们就对外哭穷，说外面欠了一百万的死债，要去借钱，看看谁会念旧情伸出援手。
+
+"行，那咱们先去我亲哥大军那儿，他当年赌钱欠债快，被人打死了，是你掏了三十万，帮他把现在的建材店开起来的。他亲妹妹有难，他肯定得......"`;
+
+    elements.inputScript.value = exampleScript;
+    updateInputLength();
+    showToast('示例剧本已加载', 'success');
+}
+
+// 设置活动步骤
+function setActiveStep(step) {
+    elements.processItems.forEach(item => {
+        item.classList.remove('active');
+        if (parseInt(item.dataset.step) === step) {
+            item.classList.add('active');
+        }
+    });
+    currentStep = step;
+}
+
+// 显示标签页
+function showTab(tab) {
+    // 如果是数字，转换为对应的标签页ID
+    let tabId = tab;
+    if (typeof tab === 'number') {
+        tabId = `tab-${tab}`;
+    }
+    
+    // 更新标签按钮
+    elements.tabBtns.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabId);
+    });
+    
+    // 更新标签内容
+    elements.tabContents.forEach(content => {
+        content.classList.toggle('active', content.id === tabId);
+    });
+}
+
+// 运行所有步骤
+async function runAllSteps() {
+    const script = elements.inputScript.value.trim();
+    if (!script) {
+        showModal('错误', '请输入剧本内容');
+        return;
+    }
+    
+    if (!validateApiKey()) {
+        showModal('错误', '请先设置有效的 OpenAI API Key');
+        return;
+    }
+    
+    setStatus('processing', '开始生成...');
+    
+    try {
+        // 步骤1: 洗稿
+        setActiveStep(1);
+        showTab(1);
+        elements.progressStatus.textContent = '正在洗稿...';
+        results.rewrite = await runRewriteStep(script);
+        elements.outputRewrite.textContent = results.rewrite;
+        
+        // 步骤2: 排版
+        setActiveStep(2);
+        showTab(2);
+        elements.progressStatus.textContent = '正在排版...';
+        results.format = await runFormatStep(results.rewrite);
+        elements.outputFormat.textContent = results.format;
+        
+        // 步骤3: 分镜
+        setActiveStep(3);
+        showTab(3);
+        elements.progressStatus.textContent = '正在生成分镜...';
+        results.storyboard = await runStoryboardStep(results.format);
+        elements.outputStoryboard.textContent = results.storyboard;
+        
+        // 步骤4: 分镜优化
+        setActiveStep(4);
+        showTab(4);
+        elements.progressStatus.textContent = '正在优化分镜...';
+        results.storyboardOpt = await runStoryboardOptStep(results.storyboard);
+        elements.outputStoryboardOpt.textContent = results.storyboardOpt;
+        
+        // 步骤5: 人物定妆照
+        setActiveStep(5);
+        showTab(5);
+        elements.progressStatus.textContent = '正在生成定妆照提示词...';
+        results.character = await runCharacterStep(results.format, results.storyboard);
+        elements.outputCharacter.textContent = results.character;
+        
+        // 步骤6: 关键帧
+        setActiveStep(6);
+        showTab(6);
+        elements.progressStatus.textContent = '正在生成关键帧提示词...';
+        results.keyframe = await runKeyframeStep(results.format, results.storyboardOpt);
+        elements.outputKeyframe.textContent = results.keyframe;
+        
+        setStatus('idle', '生成完成！');
+        elements.progressStatus.textContent = '生成完成';
+        showToast('所有步骤完成！', 'success');
+        
+        // 保存到历史记录
+        saveToHistory();
+        
+    } catch (error) {
+        console.error('生成过程中出错:', error);
+        setStatus('error', '生成失败');
+        elements.progressStatus.textContent = '生成失败';
+        showModal('错误', `生成过程中出错: ${error.message}`);
+    }
+}
+
+// 运行当前步骤
+async function runCurrentStep() {
+    const script = elements.inputScript.value.trim();
+    if (!script) {
+        showModal('错误', '请输入剧本内容');
+        return;
+    }
+    
+    if (!validateApiKey()) {
+        showModal('错误', '请先设置有效的 OpenAI API Key');
+        return;
+    }
+    
+    setStatus('processing', '正在处理...');
+    
+    try {
+        switch(currentStep) {
+            case 1:
+                elements.progressStatus.textContent = '正在洗稿...';
+                results.rewrite = await runRewriteStep(script);
+                elements.outputRewrite.textContent = results.rewrite;
+                break;
+            case 2:
+                if (!results.rewrite) {
+                    showModal('错误', '请先完成洗稿步骤');
+                    return;
+                }
+                elements.progressStatus.textContent = '正在排版...';
+                results.format = await runFormatStep(results.rewrite);
+                elements.outputFormat.textContent = results.format;
+                break;
+            case 3:
+                if (!results.format) {
+                    showModal('错误', '请先完成排版步骤');
+                    return;
+                }
+                elements.progressStatus.textContent = '正在生成分镜...';
+                results.storyboard = await runStoryboardStep(results.format);
+                elements.outputStoryboard.textContent = results.storyboard;
+                break;
+            case 4:
+                if (!results.storyboard) {
+                    showModal('错误', '请先完成分镜步骤');
+                    return;
+                }
+                elements.progressStatus.textContent = '正在优化分镜...';
+                results.storyboardOpt = await runStoryboardOptStep(results.storyboard);
+                elements.outputStoryboardOpt.textContent = results.storyboardOpt;
+                break;
+            case 5:
+                if (!results.format || !results.storyboard) {
+                    showModal('错误', '请先完成排版和分镜步骤');
+                    return;
+                }
+                elements.progressStatus.textContent = '正在生成定妆照提示词...';
+                results.character = await runCharacterStep(results.format, results.storyboard);
+                elements.outputCharacter.textContent = results.character;
+                break;
+            case 6:
+                if (!results.format || !results.storyboardOpt) {
+                    showModal('错误', '请先完成排版和分镜优化步骤');
+                    return;
+                }
+                elements.progressStatus.textContent = '正在生成关键帧提示词...';
+                results.keyframe = await runKeyframeStep(results.format, results.storyboardOpt);
+                elements.outputKeyframe.textContent = results.keyframe;
+                break;
+        }
+        
+        setStatus('idle', '步骤完成');
+        elements.progressStatus.textContent = '步骤完成';
+        showToast(`步骤 ${currentStep} 完成`, 'success');
+        
+    } catch (error) {
+        console.error('处理过程中出错:', error);
+        setStatus('error', '处理失败');
+        elements.progressStatus.textContent = '处理失败';
+        showModal('错误', `处理过程中出错: ${error.message}`);
+    }
+}
+
+// 重置所有结果
+function resetAll() {
+    if (confirm('确定要重置所有结果吗？这将清空所有生成的内容。')) {
+        results = {
+            rewrite: '',
+            format: '',
+            storyboard: '',
+            storyboardOpt: '',
+            character: '',
+            keyframe: ''
+        };
+        
+        elements.outputRewrite.textContent = '';
+        elements.outputFormat.textContent = '';
+        elements.outputStoryboard.textContent = '';
+        elements.outputStoryboardOpt.textContent = '';
+        elements.outputCharacter.textContent = '';
+        elements.outputKeyframe.textContent = '';
+        
+        setActiveStep(1);
+        showTab(1);
+        setStatus('idle', '已重置');
+        elements.progressStatus.textContent = '已重置';
+        
+        showToast('所有结果已重置', 'info');
+    }
+}
+
+// 复制所有结果
+function copyAllResults() {
+    const allResults = `=== 洗稿结果 ===\n${results.rewrite}\n\n=== 排版结果 ===\n${results.format}\n\n=== 分镜结果 ===\n${results.storyboard}\n\n=== 优化分镜 ===\n${results.storyboardOpt}\n\n=== 人物定妆照 ===\n${results.character}\n\n=== 关键帧 ===\n${results.keyframe}`;
+    
+    navigator.clipboard.writeText(allResults)
+        .then(() => showToast('已复制到剪贴板', 'success'))
+        .catch(err => showModal('错误', '复制失败: ' + err.message));
+}
+
+// 下载结果
+function downloadResults() {
+    const allResults = `=== 洗稿结果 ===\n${results.rewrite}\n\n=== 排版结果 ===\n${results.format}\n\n=== 分镜结果 ===\n${results.storyboard}\n\n=== 优化分镜 ===\n${results.storyboardOpt}\n\n=== 人物定妆照 ===\n${results.character}\n\n=== 关键帧 ===\n${results.keyframe}`;
+    
+    const blob = new Blob([allResults], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aicg剧本生成_${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast('结果已下载', 'success');
+}
+
+// 调用 OpenAI API
+async function callOpenAI(prompt, systemPrompt = null) {
+    const apiKey = elements.apiKeyInput.value.trim();
+    if (!apiKey) {
+        throw new Error('API Key 未设置');
+    }
+    
+    const model = elements.modelSelect.value;
+    const temperature = parseFloat(elements.temperatureInput.value);
+    const maxTokens = parseInt(elements.maxTokensInput.value);
+    
+    const messages = [];
+    if (systemPrompt) {
+        messages.push({ role: 'system', content: systemPrompt });
+    }
+    messages.push({ role: 'user', content: prompt });
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+            model: model,
+            messages: messages,
+            temperature: temperature,
+            max_tokens: maxTokens
+        })
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`API 请求失败: ${response.status} ${errorData.error?.message || '未知错误'}`);
+    }
+    
+    const data = await response.json();
+    return data.choices[0].message.content;
+}
+
+// 步骤函数
+async function runRewriteStep(script) {
+    const prompt = `你是一个专业的短视频编剧。请根据下面的剧本进行大改重写：
+
+要求：
+1. 保留核心框架和爆点，主线冲突与反转不变
+2. 重置所有人物名字，统一人物关系。男主要帅(25-35岁)，女主要漂亮(25-30岁)
+3. 整体表达、台词、细节、转场、冲突全部换一种写法
+4. 风格贴近微信视频号狗血短剧，情绪强烈，冲突猛烈，反转爽快
+5. 逻辑顺畅，人物动机合理，前后衔接自然
+6. 保留产品植入位置和功能作用，产品话术重新写
+7. 字数尽量贴近原文
+8. 直接输出完整改写版，不要解释和分析
+
+原始剧本：
+${script}`;
+
+    return await callOpenAI(prompt);
+}
+
+async function runFormatStep(rewrittenScript) {
+    const prompt = `你是一个专业的短视频编剧。请将下面的剧本进行排版：
+
+要求：
+1. 每个场景用标题标注
+2. 每段对话要有说话人标识
+3. 添加适当的动作、表情、情绪描述
+4. 保持狗血短剧风格
+5. 输出格式清晰易读
+
+洗稿后的剧本：
+${rewrittenScript}`;
+
+    return await callOpenAI(prompt);
+}
+
+async function runStoryboardStep(formattedScript) {
+    const prompt = `你是一个专业的视频分镜师。请根据剧本，每15秒生成4-5个分镜：
+
+要求：
+1. 用 "1-1"、"1-2" 等形式区分
+2. 详细描述镜头类型、人物动作、表情、情绪
+3. 考虑黄金3秒原则
+4. 每段开头添加具体场景描述
+
+剧本：
+${formattedScript}`;
+
+    return await callOpenAI(prompt);
+}
+
+async function runStoryboardOptStep(storyboard) {
+    const prompt = `请按照模板优化分镜：
+
+要求：
+1. 每个片段开头加上： "(生成视频不带字幕，生成视频不带 bgm 背景音乐，适当切镜，场景为{场景名}，人物为{人物列表})"
+2. 镜头描述使用方括号括起来
+3. 人物对话添加表情和动作描述
+
+原始分镜：
+${storyboard}`;
+
+    return await callOpenAI(prompt);
+}
+
+async function runCharacterStep(formattedScript, storyboard) {
+    const prompt = `你是一个国际知名定妆照摄影师。请根据下面的剧本和分镜，生成所有主要人物的定妆照提示词：
+
+要求：
+1. 为每个主要角色生成全身定妆照提示词
+2. 描述要详细：包括自然妆、发型、身高、服装质感等
+3. 背景：纯色背景，影棚效果
+4. 光影：根据角色特点选择柔光、强光、侧光、逆光等
+5. 质量要求：写实，8k，超高清
+6. 男主要帅(25-35岁)，女主要漂亮(25-30岁)
+
+剧本信息：
+${formattedScript}
+
+分镜信息：
+${storyboard}`;
+
+    return await callOpenAI(prompt);
+}
+
+async function runKeyframeStep(formattedScript, storyboardOpt) {
+    const prompt = `你是一个专业的动画分镜师。请为关键场景生成单帧分镜提示词：
+
+要求：
+1. 描述画面构图、人物位置、动作表情
+2. 描述灯光效果和氛围
+3. 描述画面细节和质感
+4. 符合电影级构图，写实风格，8k超高清
+
+剧本信息：
+${formattedScript}
+
+优化后的分镜：
+${storyboardOpt}`;
+
+    return await callOpenAI(prompt);
+}
+
+// 设置相关函数
+function validateApiKey() {
+    const apiKey = elements.apiKeyInput.value.trim();
+    return apiKey.length > 0 && apiKey.startsWith('sk-');
+}
+
+function toggleApiKeyVisibility() {
+    const input = elements.apiKeyInput;
+    const btn = document.getElementById('btn-toggle-key');
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+    } else {
+        input.type = 'password';
+        btn.innerHTML = '<i class="fas fa-eye"></i>';
+    }
+}
+
+function updateTemperatureValue() {
+    document.getElementById('temp-value').textContent = elements.temperatureInput.value;
+}
+
+function saveSettings() {
+    const settings = {
+        apiKey: elements.apiKeyInput.value,
+        model: elements.modelSelect.value,
+        temperature: elements.temperatureInput.value,
+        maxTokens: elements.maxTokensInput.value
+    };
+    
+    localStorage.setItem('aicg_settings', JSON.stringify(settings));
+    showToast('设置已保存', 'success');
+}
+
+function loadSettings() {
+    const saved = localStorage.getItem('aicg_settings');
+    if (saved) {
+        try {
+            const settings = JSON.parse(saved);
+            elements.apiKeyInput.value = settings.apiKey || '';
+            elements.modelSelect.value = settings.model || 'gpt-4o';
+            elements.temperatureInput.value = settings.temperature || '0.7';
+            elements.maxTokensInput.value = settings.maxTokens || '2000';
+            updateTemperatureValue();
+        } catch (e) {
+            console.error('加载设置失败:', e);
+        }
+    }
+}
+
+async function testApiConnection() {
+    if (!validateApiKey()) {
+        showModal('错误', '请输入有效的 OpenAI API Key');
+        return;
+    }
+    
+    setStatus('processing', '测试连接中...');
+    
+    try {
+        const response = await fetch('https://api.openai.com/v1/models', {
+            headers: {
+                'Authorization': `Bearer ${elements.apiKeyInput.value.trim()}`
+            }
+        });
+        
+        if (response.ok) {
+            setStatus('idle', '连接成功');
+            showToast('API 连接成功', 'success');
+            elements.apiStatus.innerHTML = '<i class="fas fa-plug"></i> API: 已连接';
+            elements.apiStatus.style.color = '#10b981';
+        } else {
+            throw new Error(`HTTP ${response.status}`);
+        }
+    } catch (error) {
+        setStatus('error', '连接失败');
+        showModal('错误', `API 连接失败: ${error.message}`);
+        elements.apiStatus.innerHTML = '<i class="fas fa-plug"></i> API: 连接失败';
+        elements.apiStatus.style.color = '#ef4444';
+    }
+}
+
+function toggleDarkMode() {
+    // 简单的暗色/亮色模式切换（如果需要的话）
+    document.body.classList.toggle('light-mode');
+    const btn = document.getElementById('dark-mode-toggle');
+    if (document.body.classList.contains('light-mode')) {
+        btn.innerHTML = '<i class="fas fa-sun"></i>';
+        btn.title = '切换到深色模式';
+    } else {
+        btn.innerHTML = '<i class="fas fa-moon"></i>';
+        btn.title = '切换到浅色模式';
+    }
+}
+
+// 状态管理
+function setStatus(type, text) {
+    elements.statusIndicator.className = `status-indicator ${type}`;
+    elements.statusIndicator.innerHTML = `<i class="fas fa-circle"></i> ${text}`;
+}
+
+// 弹窗和提示
+function showModal(title, content) {
+    elements.modalTitle.textContent = title;
+    elements.modalBody.textContent = content;
+    elements.modal.classList.add('active');
+}
+
+function closeModal() {
+    elements.modal.classList.remove('active');
+}
+
+function showToast(message, type = 'info') {
+    // 简单的toast提示
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    
+    Object.assign(toast.style, {
+        position: 'fixed',
+        bottom: '20px',
+        right: '20px',
+        padding: '12px 24px',
+        background: type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6',
+        color: 'white',
+        borderRadius: '8px',
+        zIndex: '9999',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        animation: 'fadeIn 0.3s'
+    });
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// 添加CSS动画
+const style = document.createElement('style');
+style.textContent = `
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(20px); }
+}
+.toast { animation: fadeIn 0.3s; }
+`;
+document.head.appendChild(style);
+
+function showHelp() {
+    const helpContent = `
+    <h3>使用说明</h3>
+    <ol>
+        <li><strong>配置API</strong>: 在右侧设置面板输入你的OpenAI API Key并保存</li>
+        <li><strong>输入剧本</strong>: 在左侧输入框中粘贴原始剧本文本</li>
+        <li><strong>选择流程</strong>:
+            <ul>
+                <li>点击"一键生成"自动执行全部6个步骤</li>
+                <li>点击"单步执行"只执行当前选中步骤</li>
+                <li>点击左侧步骤可以切换当前步骤</li>
+            </ul>
+        </li>
+        <li><strong>查看结果</strong>: 在中间区域点击标签页查看不同步骤的结果</li>
+        <li><strong>导出结果</strong>: 使用右上角的复制或下载按钮</li>
+    </ol>
+    
+    <h3>6步工作流程</h3>
+    <ol>
+        <li><strong>洗稿</strong>: 重写剧本，更换人物和台词</li>
+        <li><strong>排版</strong>: 格式化剧本，添加场景标注</li>
+        <li><strong>分镜</strong>: 生成每15秒4-5个分镜提示词</li>
+        <li><strong>分镜优化</strong>: 按视频制作模板格式化</li>
+        <li><strong>定妆照+场景</strong>: 生成AI绘画提示词</li>
+        <li><strong>关键帧</strong>: 生成关键帧图片提示词</li>
+    </ol>
+    
+    <h3>API 设置</h3>
+    <ul>
+        <li><strong>API Key</strong>: 从OpenAI官网获取的API密钥</li>
+        <li><strong>模型</strong>: 推荐使用GPT-4o，平衡效果和成本</li>
+        <li><strong>创造力</strong>: 值越高越有创造性，越低越稳定</li>
+        <li><strong>最大长度</strong>: 控制AI生成内容的长度</li>
+    </ul>
+    `;
+    
+    elements.modalTitle.textContent = '帮助文档';
+    elements.modalBody.innerHTML = helpContent;
+    elements.modal.classList.add('active');
+}
+
+// 历史记录
+function saveToHistory() {
+    const history = JSON.parse(localStorage.getItem('aicg_history') || '[]');
+    history.unshift({
+        id: Date.now(),
+        timestamp: new Date().toLocaleString(),
+        inputLength: elements.inputScript.value.length,
+        date: new Date().toISOString()
+    });
+    
+    // 只保留最近10条记录
+    if (history.length > 10) {
+        history.length = 10;
+    }
+    
+    localStorage.setItem('aicg_history', JSON.stringify(history));
+    updateHistoryList();
+}
+
+function updateHistoryList() {
+    const historyList = document.getElementById('history-list');
+    const history = JSON.parse(localStorage.getItem('aicg_history') || '[]');
+    
+    if (history.length === 0) {
+        historyList.innerHTML = '<li class="history-item">暂无记录</li>';
+        return;
+    }
+    
+    historyList.innerHTML = history.map(item => `
+        <li class="history-item" data-id="${item.id}">
+            <strong>${item.timestamp}</strong><br>
+            <small>${item.inputLength} 字</small>
+        </li>
+    `).join('');
+    
+    // 绑定点击事件
+    document.querySelectorAll('.history-item').forEach(item => {
+        if (item.dataset.id) {
+            item.addEventListener('click', () => {
+                const historyItem = history.find(h => h.id == item.dataset.id);
+                if (historyItem) {
+                    // 这里可以添加加载历史记录的功能
+                    showToast('点击历史记录（功能开发中）', 'info');
+                }
+            });
+        }
+    });
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', init);
