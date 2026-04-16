@@ -11,6 +11,9 @@ const defaultModelList = [
 // 用户模型列表
 let modelList = [...defaultModelList];
 
+// 默认模型ID（用于API调用）
+let defaultModelId = null;
+
 // 每个步骤的当前查看版本
 let currentVersions = {
     format: 1,
@@ -171,8 +174,8 @@ function init() {
     // 更新输入字数
     updateInputLength();
 
-    // 如果保存过 API Key，自动测试连接
-    autoTestApiConnection();
+    // 更新 API 状态显示（不自动测试连接）
+    updateApiStatusDisplay();
 
     console.log('AICG 短视频剧本生成器初始化完成');
 }
@@ -256,8 +259,20 @@ function bindEvents() {
     document.getElementById('btn-reset-prompt').addEventListener('click', resetPrompts);
     document.getElementById('btn-manage-prompts').addEventListener('click', showPromptManager);
 
+    // 提示词导入/导出
+    document.getElementById('btn-export-prompts').addEventListener('click', exportPromptsToFile);
+    document.getElementById('btn-import-prompts').addEventListener('click', () => {
+        document.getElementById('import-prompts-file').click();
+    });
+    document.getElementById('import-prompts-file').addEventListener('change', importPromptsFromFile);
+
     // API 设置
     document.getElementById('btn-save-settings').addEventListener('click', saveSettings);
+
+    // 默认模型选择器
+    document.getElementById('default-model-select').addEventListener('change', (e) => {
+        defaultModelId = e.target.value;
+    });
 
     // 模态框
     document.querySelector('.modal-close').addEventListener('click', closeModal);
@@ -265,6 +280,11 @@ function bindEvents() {
     elements.modal.addEventListener('click', (e) => {
         if (e.target === elements.modal) closeModal();
     });
+
+    // API 状态栏点击测试连接
+    elements.apiStatus.addEventListener('click', testApiConnectionManual);
+    elements.apiStatus.style.cursor = 'pointer';
+    elements.apiStatus.title = '点击测试 API 连接';
 
     // 暗色/亮色模式切换
     document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
@@ -496,6 +516,85 @@ function resetPrompts() {
         loadPrompts();
         showToast('已恢复默认提示词', 'success');
     }
+}
+
+// 导出所有提示词到JSON文件
+function exportPromptsToFile() {
+    const promptLibrary = JSON.parse(localStorage.getItem('aicg_prompt_library') || '{}');
+    const currentPrompts = {
+        rewrite: document.getElementById('prompt-rewrite').value,
+        format: document.getElementById('prompt-format').value,
+        storyboard: document.getElementById('prompt-storyboard').value,
+        storyboardOpt: document.getElementById('prompt-storyboard-opt').value,
+        character: document.getElementById('prompt-character').value,
+        keyframe: document.getElementById('prompt-keyframe').value,
+        scene: document.getElementById('prompt-scene').value,
+        inputSources: {
+            format: document.getElementById('input-format')?.value || 'input',
+            rewrite: document.getElementById('input-rewrite')?.value || 'format',
+            storyboard: document.getElementById('input-storyboard')?.value || 'rewrite',
+            storyboardOpt: document.getElementById('input-storyboard-opt')?.value || 'storyboard',
+            character: document.getElementById('input-character')?.value || 'storyboardOpt',
+            keyframe: document.getElementById('input-keyframe')?.value || 'storyboardOpt',
+            scene: document.getElementById('input-scene')?.value || 'storyboardOpt'
+        }
+    };
+
+    const exportData = {
+        version: '1.0',
+        exportTime: new Date().toISOString(),
+        currentPrompts: currentPrompts,
+        promptLibrary: promptLibrary
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aicg_prompts_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('提示词已导出到文件', 'success');
+}
+
+// 从JSON文件导入提示词
+function importPromptsFromFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+
+            // 验证格式
+            if (!data.currentPrompts && !data.promptLibrary) {
+                throw new Error('无效的提示词文件格式');
+            }
+
+            // 导入当前提示词
+            if (data.currentPrompts) {
+                localStorage.setItem('aicg_custom_prompts', JSON.stringify(data.currentPrompts));
+                customPrompts = { ...defaultPrompts, ...data.currentPrompts };
+            }
+
+            // 导入提示词库
+            if (data.promptLibrary && Object.keys(data.promptLibrary).length > 0) {
+                const existingLibrary = JSON.parse(localStorage.getItem('aicg_prompt_library') || '{}');
+                // 合并，同名覆盖
+                const mergedLibrary = { ...existingLibrary, ...data.promptLibrary };
+                localStorage.setItem('aicg_prompt_library', JSON.stringify(mergedLibrary));
+            }
+
+            loadPrompts();
+            showToast(`成功导入提示词配置`, 'success');
+        } catch (err) {
+            showToast('导入失败：' + err.message, 'error');
+        }
+    };
+    reader.readAsText(file);
+    // 清除文件选择，允许重复选择同一文件
+    event.target.value = '';
 }
 
 function loadPrompts() {
@@ -1155,64 +1254,114 @@ async function callOpenAIStream(prompt, outputElement, modelConfig, onChunk) {
         headers['Authorization'] = `Bearer ${modelApiKey}`;
     }
 
-    const response = await fetch(modelEndpoint, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify({
-            model: model,
-            messages: messages,
-            stream: true  // 启用流式输出
-        })
-    });
+    // ===== 超时配置 =====
+    const REQUEST_TIMEOUT = 300000;     // 请求连接超时：5分钟
+    const READ_TIMEOUT = 120000;        // 单次读取超时：2分钟（适应本地推理较慢的情况）
+    const IDLE_TIMEOUT = 180000;        // 空闲超时：3分钟无数据则警告
 
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`API 请求失败: ${response.status}\n错误: ${errorData.error?.message || '未知错误'}`);
-    }
+    // 创建 AbortController 用于取消请求
+    const controller = new AbortController();
+    const requestTimeoutId = setTimeout(() => {
+        controller.abort();
+    }, REQUEST_TIMEOUT);
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
+    let lastDataTime = Date.now();      // 记录最后一次收到数据的时间
     let fullContent = '';
 
-    // 清空输出元素
-    if (outputElement) {
-        outputElement.value = '';
-    }
+    try {
+        const response = await fetch(modelEndpoint, {
+            signal: controller.signal,  // 关联 AbortController
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                model: model,
+                messages: messages,
+                stream: true  // 启用流式输出
+            })
+        });
 
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        clearTimeout(requestTimeoutId); // 连接成功，清除请求超时
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`API 请求失败: ${response.status}\n错误: ${errorData.error?.message || '未知错误'}`);
+        }
 
-        for (const line of lines) {
-            if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-                if (data === '[DONE]') continue;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
 
-                try {
-                    const json = JSON.parse(data);
-                    const content = json.choices?.[0]?.delta?.content;
-                    if (content) {
-                        fullContent += content;
-                        if (outputElement) {
-                            outputElement.value = fullContent;
-                            // 自动滚动到底部
-                            outputElement.scrollTop = outputElement.scrollHeight;
-                        }
-                        if (onChunk) {
-                            onChunk(content, fullContent);
+        // 清空输出元素
+        if (outputElement) {
+            outputElement.value = '';
+        }
+
+        // 空闲超时检测（仅用于日志警告）
+        const idleCheckInterval = setInterval(() => {
+            const idleTime = Date.now() - lastDataTime;
+            if (idleTime > IDLE_TIMEOUT) {
+                console.warn(`流式输出空闲超过 ${Math.round(idleTime/1000)} 秒，连接可能已断开`);
+            }
+        }, 30000); // 每30秒检查一次
+
+        try {
+            while (true) {
+                // 读取超时控制
+                const readPromise = reader.read();
+                const readTimeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('读取超时')), READ_TIMEOUT);
+                });
+
+                const { done, value } = await Promise.race([readPromise, readTimeoutPromise]);
+
+                if (done) break;
+
+                lastDataTime = Date.now(); // 更新最后数据时间
+
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+
+                        try {
+                            const json = JSON.parse(data);
+                            const content = json.choices?.[0]?.delta?.content;
+                            if (content) {
+                                fullContent += content;
+                                if (outputElement) {
+                                    outputElement.value = fullContent;
+                                    // 自动滚动到底部
+                                    outputElement.scrollTop = outputElement.scrollHeight;
+                                }
+                                if (onChunk) {
+                                    onChunk(content, fullContent);
+                                }
+                            }
+                        } catch (e) {
+                            // 忽略解析错误
                         }
                     }
-                } catch (e) {
-                    // 忽略解析错误
                 }
             }
+        } finally {
+            clearInterval(idleCheckInterval);
         }
-    }
 
-    return fullContent;
+        return fullContent;
+
+    } catch (error) {
+        clearTimeout(requestTimeoutId);
+
+        // 友好的错误提示
+        if (error.name === 'AbortError') {
+            throw new Error(`请求超时（${REQUEST_TIMEOUT/1000}秒），请检查网络连接或尝试减少内容长度`);
+        } else if (error.message === '读取超时') {
+            throw new Error(`流式输出中断，可能是服务器响应超时。已接收内容长度：${fullContent.length} 字符`);
+        }
+        throw error;
+    }
 }
 
 // 调用 OpenAI API (非流式，作为备选)
@@ -1329,15 +1478,22 @@ function validateApiKey() {
 
 // 获取默认模型（用于非步骤调用）
 function getCurrentModel() {
+    // 如果设置了默认模型且该模型存在，返回默认模型
+    if (defaultModelId && modelList.find(m => m.id === defaultModelId)) {
+        return defaultModelId;
+    }
+    // 否则返回第一个模型
     return modelList.length > 0 ? modelList[0].id : 'gpt-4o';
 }
 
 function saveSettings() {
     const settings = {
-        modelList: modelList
+        modelList: modelList,
+        defaultModelId: defaultModelId
     };
 
     localStorage.setItem('aicg_settings', JSON.stringify(settings));
+    updateApiStatusDisplay();  // 更新 API 状态显示
     showToast('设置已保存', 'success');
 }
 
@@ -1351,8 +1507,13 @@ function loadSettings() {
             if (settings.modelList && settings.modelList.length > 0) {
                 modelList = settings.modelList;
             }
+            // 加载默认模型
+            if (settings.defaultModelId) {
+                defaultModelId = settings.defaultModelId;
+            }
             updateModelListUI();
             updateStepModelSelects();
+            updateDefaultModelSelect();
         } catch (e) {
             console.error('加载设置失败:', e);
         }
@@ -1360,21 +1521,53 @@ function loadSettings() {
         // 首次加载，使用默认模型列表
         updateModelListUI();
         updateStepModelSelects();
+        updateDefaultModelSelect();
     }
 }
 
-// 自动测试 API 连接（页面加载时）
-async function autoTestApiConnection() {
-    // 检查是否有模型配置了端点
-    const validModel = modelList.find(m => m.endpoint && m.endpoint.trim());
+// 更新 API 状态显示（不实际测试连接）
+function updateApiStatusDisplay() {
+    // 优先检查默认模型
+    let validModel = null;
+    if (defaultModelId) {
+        validModel = modelList.find(m => m.id === defaultModelId && m.endpoint && m.endpoint.trim());
+    }
     if (!validModel) {
-        // 没有有效配置，显示未连接状态
-        elements.apiStatus.innerHTML = '<i class="fas fa-plug"></i> API: 未连接';
+        validModel = modelList.find(m => m.endpoint && m.endpoint.trim());
+    }
+
+    if (!validModel) {
+        // 没有有效配置，显示未配置状态
+        elements.apiStatus.innerHTML = '<i class="fas fa-plug"></i> API: 未配置';
         elements.apiStatus.style.color = '#94a3b8';
+    } else {
+        // 有配置，显示已配置状态（实际连接状态待用户手动测试）
+        elements.apiStatus.innerHTML = '<i class="fas fa-plug"></i> API: 已配置';
+        elements.apiStatus.style.color = '#f59e0b';
+    }
+}
+
+// 手动测试 API 连接（点击状态栏或设置中测试按钮时调用）
+async function testApiConnectionManual() {
+    // 优先使用默认模型，否则找第一个配置了端点的模型
+    let validModel = null;
+
+    if (defaultModelId) {
+        validModel = modelList.find(m => m.id === defaultModelId && m.endpoint && m.endpoint.trim());
+    }
+    if (!validModel) {
+        validModel = modelList.find(m => m.endpoint && m.endpoint.trim());
+    }
+
+    if (!validModel) {
+        showToast('请先配置 API 端点', 'warning');
         return;
     }
 
-    // 静默测试，不显示 toast 和弹窗
+    // 显示测试中状态
+    elements.apiStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> API: 测试中...';
+    elements.apiStatus.style.color = '#f59e0b';
+
     try {
         const headers = {
             'Content-Type': 'application/json'
@@ -1396,13 +1589,16 @@ async function autoTestApiConnection() {
         if (response.ok) {
             elements.apiStatus.innerHTML = '<i class="fas fa-plug"></i> API: 已连接';
             elements.apiStatus.style.color = '#10b981';
+            showToast('API 连接成功', 'success');
         } else {
             elements.apiStatus.innerHTML = '<i class="fas fa-plug"></i> API: 连接失败';
             elements.apiStatus.style.color = '#ef4444';
+            showToast('API 连接失败', 'error');
         }
     } catch (error) {
         elements.apiStatus.innerHTML = '<i class="fas fa-plug"></i> API: 连接失败';
         elements.apiStatus.style.color = '#ef4444';
+        showToast('API 连接失败: ' + error.message, 'error');
     }
 }
 
@@ -1502,6 +1698,23 @@ function updateStepModelSelects() {
                 select.value = currentValue;
             }
         }
+    }
+}
+
+// 更新默认模型选择器
+function updateDefaultModelSelect() {
+    const select = document.getElementById('default-model-select');
+    if (!select) return;
+
+    const currentValue = defaultModelId || (modelList.length > 0 ? modelList[0].id : '');
+
+    select.innerHTML = modelList.map(model =>
+        `<option value="${model.id}">${model.name} (${model.id})</option>`
+    ).join('');
+
+    // 设置当前选中值
+    if (currentValue && modelList.find(m => m.id === currentValue)) {
+        select.value = currentValue;
     }
 }
 

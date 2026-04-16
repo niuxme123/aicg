@@ -74,6 +74,13 @@
                                 <button class="prompt-step-btn" data-prompt-step="7">场景</button>
                             </div>
                             <div class="card-actions">
+                                <button id="btn-import-prompts" class="btn-icon" title="导入提示词">
+                                    <i class="fas fa-file-import"></i>
+                                </button>
+                                <input type="file" id="import-prompts-file" accept=".json" style="display: none;">
+                                <button id="btn-export-prompts" class="btn-icon" title="导出提示词">
+                                    <i class="fas fa-file-export"></i>
+                                </button>
                                 <button id="btn-manage-prompts" class="btn-icon" title="管理提示词">
                                     <i class="fas fa-folder-open"></i>
                                 </button>
@@ -358,6 +365,17 @@
             <div class="settings-panel-body">
                 <div class="form-group">
                     <label>
+                        <i class="fas fa-cog"></i> 默认模型
+                    </label>
+                    <div class="help-text" style="margin-bottom: 8px;">
+                        选择API调用使用的默认模型（连接测试也会使用此模型）
+                    </div>
+                    <select id="default-model-select" class="select-input" style="width: 100%; margin-bottom: 16px;">
+                        <!-- 选项将动态生成 -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>
                         <i class="fas fa-list"></i> 模型列表
                     </label>
                     <div class="help-text" style="margin-bottom: 8px;">
@@ -387,7 +405,7 @@
                 <span id="progress-status">就绪</span>
             </div>
             <div class="footer-right">
-                <span class="version">v1.0.0</span>
+                <span class="version">v1.1.0</span>
                 <button id="btn-help" class="btn-icon-small" title="帮助">
                     <i class="fas fa-question-circle"></i>
                 </button>
