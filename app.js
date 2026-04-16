@@ -46,6 +46,96 @@ let results = {
     scene: []      // 场景提示词结果数组
 };
 
+// 保存结果到 localStorage
+function saveResultsToStorage() {
+    localStorage.setItem('aicg_results', JSON.stringify(results));
+}
+
+// 从 localStorage 加载结果
+function loadResultsFromStorage() {
+    const saved = localStorage.getItem('aicg_results');
+    if (saved) {
+        try {
+            const savedResults = JSON.parse(saved);
+            // 合并保存的结果
+            for (const key in results) {
+                if (savedResults[key] && Array.isArray(savedResults[key])) {
+                    results[key] = savedResults[key];
+                }
+            }
+        } catch (e) {
+            console.error('加载结果失败:', e);
+        }
+    }
+}
+
+// 将结果显示到输出框
+function displayResults() {
+    const outputMap = {
+        format: 'output-format',
+        rewrite: 'output-rewrite',
+        storyboard: 'output-storyboard',
+        storyboardOpt: 'output-storyboard-opt',
+        character: 'output-character',
+        keyframe: 'output-keyframe',
+        scene: 'output-scene'
+    };
+
+    for (const [key, elementId] of Object.entries(outputMap)) {
+        const el = document.getElementById(elementId);
+        if (el && results[key] && results[key].length > 0) {
+            const versionIndex = currentVersions[key] - 1;
+            if (results[key][versionIndex] !== undefined) {
+                el.value = results[key][versionIndex];
+            }
+        }
+    }
+
+    // 更新所有版本显示
+    updateAllVersionSelectors();
+}
+
+// 清空所有结果
+function resetAllResults() {
+    if (!confirm('确定要清空所有生成结果吗？')) return;
+
+    results = {
+        format: [],
+        rewrite: [],
+        storyboard: [],
+        storyboardOpt: [],
+        character: [],
+        keyframe: [],
+        scene: []
+    };
+
+    currentVersions = {
+        format: 1,
+        rewrite: 1,
+        storyboard: 1,
+        storyboardOpt: 1,
+        character: 1,
+        keyframe: 1,
+        scene: 1
+    };
+
+    // 清空输出框
+    const outputIds = ['output-format', 'output-rewrite', 'output-storyboard',
+                       'output-storyboard-opt', 'output-character', 'output-keyframe', 'output-scene'];
+    outputIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+
+    // 清除存储
+    localStorage.removeItem('aicg_results');
+
+    // 更新版本显示
+    updateAllVersionSelectors();
+
+    showToast('已清空所有结果', 'success');
+}
+
 // 默认提示词
 // 可用占位符：{输入} - 根据下拉选择自动填充
 // 也可使用：{原始剧本} {排版结果} {洗稿结果} {分镜结果} {优化分镜} {定妆照} {场景提示词}
@@ -177,6 +267,10 @@ function init() {
     // 更新 API 状态显示（不自动测试连接）
     updateApiStatusDisplay();
 
+    // 加载并显示之前保存的结果
+    loadResultsFromStorage();
+    displayResults();
+
     console.log('AICG 短视频剧本生成器初始化完成');
 }
 
@@ -221,7 +315,8 @@ function bindEvents() {
     document.getElementById('btn-save-script').addEventListener('click', saveScript);
     document.getElementById('btn-load-script').addEventListener('click', showScriptManager);
 
-    // 复制和下载
+    // 重置、复制和下载
+    document.getElementById('btn-reset-results').addEventListener('click', resetAllResults);
     elements.btnCopy.addEventListener('click', copyAllResults);
     elements.btnDownload.addEventListener('click', downloadResults);
 
@@ -1036,6 +1131,8 @@ function bindOutputSyncEvents() {
                 }
                 // 同步内容
                 results[stepName][idx] = el.value;
+                // 保存到 localStorage
+                saveResultsToStorage();
             });
         }
     });
@@ -1171,6 +1268,9 @@ async function runCurrentStep() {
         setStatus('idle', '步骤完成');
         elements.progressStatus.textContent = '步骤完成';
         showToast(`步骤 ${currentStep} 完成`, 'success');
+
+        // 保存结果到 localStorage
+        saveResultsToStorage();
 
     } catch (error) {
         console.error('处理过程中出错:', error);
