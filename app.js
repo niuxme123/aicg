@@ -36,6 +36,10 @@ let stepGenerateCount = {
     scene: 1
 };
 
+// 全局 AbortController 用于终止请求
+let currentAbortController = null;
+let isProcessing = false;
+
 let results = {
     format: [],   // 排版结果数组
     rewrite: [],  // 洗稿结果数组
@@ -319,6 +323,9 @@ function bindEvents() {
     document.getElementById('btn-reset-results').addEventListener('click', resetAllResults);
     elements.btnCopy.addEventListener('click', copyAllResults);
     elements.btnDownload.addEventListener('click', downloadResults);
+
+    // 终止按钮
+    document.getElementById('btn-stop').addEventListener('click', stopGeneration);
 
     // 标签页切换
     elements.tabBtns.forEach(btn => {
@@ -1354,33 +1361,21 @@ async function callOpenAIStream(prompt, outputElement, modelConfig, onChunk) {
         headers['Authorization'] = `Bearer ${modelApiKey}`;
     }
 
-    // ===== 超时配置 =====
-    const REQUEST_TIMEOUT = 300000;     // 请求连接超时：5分钟
-    const READ_TIMEOUT = 120000;        // 单次读取超时：2分钟（适应本地推理较慢的情况）
-    const IDLE_TIMEOUT = 180000;        // 空闲超时：3分钟无数据则警告
-
-    // 创建 AbortController 用于取消请求
-    const controller = new AbortController();
-    const requestTimeoutId = setTimeout(() => {
-        controller.abort();
-    }, REQUEST_TIMEOUT);
-
-    let lastDataTime = Date.now();      // 记录最后一次收到数据的时间
+    // 创建全局 AbortController 用于取消请求
+    currentAbortController = new AbortController();
     let fullContent = '';
 
     try {
         const response = await fetch(modelEndpoint, {
-            signal: controller.signal,  // 关联 AbortController
+            signal: currentAbortController.signal,
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
                 model: model,
                 messages: messages,
-                stream: true  // 启用流式输出
+                stream: true
             })
         });
-
-        clearTimeout(requestTimeoutId); // 连接成功，清除请求超时
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
@@ -1395,72 +1390,58 @@ async function callOpenAIStream(prompt, outputElement, modelConfig, onChunk) {
             outputElement.value = '';
         }
 
-        // 空闲超时检测（仅用于日志警告）
-        const idleCheckInterval = setInterval(() => {
-            const idleTime = Date.now() - lastDataTime;
-            if (idleTime > IDLE_TIMEOUT) {
-                console.warn(`流式输出空闲超过 ${Math.round(idleTime/1000)} 秒，连接可能已断开`);
-            }
-        }, 30000); // 每30秒检查一次
+        while (true) {
+            const { done, value } = await reader.read();
 
-        try {
-            while (true) {
-                // 读取超时控制
-                const readPromise = reader.read();
-                const readTimeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('读取超时')), READ_TIMEOUT);
-                });
+            if (done) break;
 
-                const { done, value } = await Promise.race([readPromise, readTimeoutPromise]);
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
 
-                if (done) break;
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = line.slice(6);
+                    if (data === '[DONE]') continue;
 
-                lastDataTime = Date.now(); // 更新最后数据时间
-
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n');
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
-                        if (data === '[DONE]') continue;
-
-                        try {
-                            const json = JSON.parse(data);
-                            const content = json.choices?.[0]?.delta?.content;
-                            if (content) {
-                                fullContent += content;
-                                if (outputElement) {
-                                    outputElement.value = fullContent;
-                                    // 自动滚动到底部
-                                    outputElement.scrollTop = outputElement.scrollHeight;
-                                }
-                                if (onChunk) {
-                                    onChunk(content, fullContent);
-                                }
+                    try {
+                        const json = JSON.parse(data);
+                        const content = json.choices?.[0]?.delta?.content;
+                        if (content) {
+                            fullContent += content;
+                            if (outputElement) {
+                                outputElement.value = fullContent;
+                                // 自动滚动到底部
+                                outputElement.scrollTop = outputElement.scrollHeight;
                             }
-                        } catch (e) {
-                            // 忽略解析错误
+                            if (onChunk) {
+                                onChunk(content, fullContent);
+                            }
                         }
+                    } catch (e) {
+                        // 忽略解析错误
                     }
                 }
             }
-        } finally {
-            clearInterval(idleCheckInterval);
         }
 
         return fullContent;
 
     } catch (error) {
-        clearTimeout(requestTimeoutId);
-
-        // 友好的错误提示
+        // 如果是用户主动取消，返回已接收的内容
         if (error.name === 'AbortError') {
-            throw new Error(`请求超时（${REQUEST_TIMEOUT/1000}秒），请检查网络连接或尝试减少内容长度`);
-        } else if (error.message === '读取超时') {
-            throw new Error(`流式输出中断，可能是服务器响应超时。已接收内容长度：${fullContent.length} 字符`);
+            console.log('用户终止了请求，已接收内容长度:', fullContent.length);
+            if (fullContent) {
+                // 将已接收的内容写入输出框
+                if (outputElement) {
+                    outputElement.value = fullContent;
+                }
+                return fullContent;
+            }
+            throw new Error('请求已终止');
         }
         throw error;
+    } finally {
+        currentAbortController = null;
     }
 }
 
@@ -1980,6 +1961,26 @@ function toggleDarkMode() {
 function setStatus(type, text) {
     elements.statusIndicator.className = `status-indicator ${type}`;
     elements.statusIndicator.innerHTML = `<i class="fas fa-circle"></i> ${text}`;
+
+    // 更新终止按钮显示状态
+    const stopBtn = document.getElementById('btn-stop');
+    if (type === 'processing') {
+        stopBtn.style.display = 'inline-flex';
+        isProcessing = true;
+    } else {
+        stopBtn.style.display = 'none';
+        isProcessing = false;
+    }
+}
+
+// 终止生成
+function stopGeneration() {
+    if (currentAbortController) {
+        currentAbortController.abort();
+        showToast('正在终止生成...', 'warning');
+    } else {
+        showToast('没有正在进行的请求', 'warning');
+    }
 }
 
 // 弹窗和提示
