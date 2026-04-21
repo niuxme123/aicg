@@ -324,8 +324,10 @@ function bindEvents() {
     elements.btnCopy.addEventListener('click', copyAllResults);
     elements.btnDownload.addEventListener('click', downloadResults);
 
-    // 终止按钮
-    document.getElementById('btn-stop').addEventListener('click', stopGeneration);
+    // 终止按钮（每个步骤都有）
+    document.querySelectorAll('.btn-stop-step').forEach(btn => {
+        btn.addEventListener('click', stopGeneration);
+    });
 
     // 标签页切换
     elements.tabBtns.forEach(btn => {
@@ -1962,13 +1964,23 @@ function setStatus(type, text) {
     elements.statusIndicator.className = `status-indicator ${type}`;
     elements.statusIndicator.innerHTML = `<i class="fas fa-circle"></i> ${text}`;
 
-    // 更新终止按钮显示状态
-    const stopBtn = document.getElementById('btn-stop');
+    // 更新所有终止按钮显示状态
+    const stopButtons = document.querySelectorAll('.btn-stop-step');
     if (type === 'processing') {
-        stopBtn.style.display = 'inline-flex';
+        // 显示当前步骤的终止按钮
+        stopButtons.forEach(btn => {
+            const step = parseInt(btn.dataset.step);
+            if (step === currentStep) {
+                btn.style.display = 'inline-flex';
+            } else {
+                btn.style.display = 'none';
+            }
+        });
         isProcessing = true;
     } else {
-        stopBtn.style.display = 'none';
+        stopButtons.forEach(btn => {
+            btn.style.display = 'none';
+        });
         isProcessing = false;
     }
 }
